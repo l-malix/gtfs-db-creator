@@ -1,24 +1,33 @@
 package dev.malix.mint_gfts;
 
-import java.io.BufferedReader;
-import java.io.FileNotFoundException;
-import java.io.FileReader;
-import java.io.IOException;
+import java.io.*;
+import java.nio.charset.StandardCharsets;
 import java.sql.*;
+import java.util.Scanner;
 import java.util.StringTokenizer;
 
 public class Reader {
 
     private BufferedReader reader;
+    private String path;
+    private String db_username;
+    private String db_password;
+    private String dbURL;
+
+    public Reader(String path, String db_username, String db_password, String dbURL) {
+        this.path = path;
+        this.db_username = db_username;
+        this.db_password = db_password;
+        this.dbURL = dbURL;
+    }
 
     /**
      * Reading stops from stops.txt files
-     * @param fileName
      */
-    public void readStop(String fileName){
+    public void readStop(){
         System.out.println("Reading stops.txt ...");
         try {
-            reader = new BufferedReader(new FileReader(fileName));
+            reader = new BufferedReader(new FileReader(path+"/stops.txt"));
         } catch (FileNotFoundException ex) {
             System.out.println("File not found!");
         }
@@ -60,8 +69,8 @@ public class Reader {
 
             try {
                 Class.forName("org.postgresql.Driver");
-                String dbURL="jdbc:postgresql://localhost/mint_tan_gtfs";
-                Connection connect = DriverManager.getConnection(dbURL,"postgres", "lmalix");
+
+                Connection connect = DriverManager.getConnection(dbURL,db_username, db_password);
 
                 PreparedStatement stmt = connect.prepareStatement(query);
                 stmt.executeUpdate();
@@ -83,92 +92,94 @@ public class Reader {
             System.out.println("Can't read from file");
         }
 
-        System.out.println("stops.txt stocked with success!");
+        System.out.println("stops.txt saved with success!");
     }
 
     /**
      * Reading stop_times file
-     * @param fileName
      */
-    public void readStopTimes(String fileName){
+    public void readStopTimes(){
         System.out.println("Reading stop_times.txt ...");
-        try {
-            reader = new BufferedReader(new FileReader(fileName));
-        } catch (FileNotFoundException ex) {
-            System.out.println("File not found!");
-        }
+
+        InputStream is = null;
+
 
         try {
-            String header = reader.readLine();
-            String line = reader.readLine();
-            String query = "TRUNCATE stop_times CASCADE";
-            while (line != null) {
-
-                StringTokenizer tokens = new StringTokenizer(line.replace(",", ", "), ",");
-
-                String trip_id = tokens.nextToken().trim();
-                String arrival_time = tokens.nextToken().trim();
-                String departure_time = tokens.nextToken().trim();
-                String stop_id = tokens.nextToken().trim();
-                String stop_sequence = tokens.nextToken().trim();
-                String pickup_type = tokens.nextToken().trim();
-                String drop_off_type = tokens.nextToken().trim();
-                String timepoint = tokens.nextToken().trim();
-                String stop_headsign = tokens.nextToken().trim();
-
-                query = query + ";INSERT INTO stop_times (trip_id,arrival_times,departure_time,stop_id,stop_sequence,pickup_type,drop_off_type,timepoint,stop_headsign)\n" +
-                        "VALUES (" +
-                        "'"+trip_id+"',"+
-                        "'"+arrival_time+"',"+
-                        "'"+departure_time+"',"+
-                        "'"+stop_id+"',"+
-                        "'"+stop_sequence+"',"+
-                        "'"+pickup_type+"',"+
-                        "'"+drop_off_type+"',"+
-                        "'"+timepoint+"',"+
-                        "'"+stop_headsign+"'"+
-                        ")";
-                line = reader.readLine();
-            }
+            Class.forName("org.postgresql.Driver");
+            Connection connect = DriverManager.getConnection(dbURL,db_username, db_password);
 
             try {
-                Class.forName("org.postgresql.Driver");
-                String dbURL="jdbc:postgresql://localhost/mint_tan_gtfs";
-                Connection connect = DriverManager.getConnection(dbURL,"postgres", "lmalix");
+                // Creating an instance of Inputstream
+                is = new FileInputStream(path+"/stop_times.txt");
+            } catch (FileNotFoundException ex) {
+                System.out.println("File not found!");
+            }
 
+            // Try block to check for exceptions
+            try (Scanner sc = new Scanner(
+                    is, StandardCharsets.UTF_8.name())) {
 
+                // It holds true till there is single element
+                // left in the object with usage of hasNext()
+                // method
+                String header = sc.nextLine();
+                String query = "TRUNCATE stop_times CASCADE";
                 PreparedStatement stmt = connect.prepareStatement(query + ";");
                 stmt.executeUpdate();
+                while (sc.hasNextLine()) {
+                    String line = sc.nextLine();
+                    // Printing the content of file
+
+                    StringTokenizer tokens = new StringTokenizer(line.replace(",", ", "), ",");
+
+                    String trip_id = tokens.nextToken().trim();
+                    String arrival_time = tokens.nextToken().trim();
+                    String departure_time = tokens.nextToken().trim();
+                    String stop_id = tokens.nextToken().trim();
+                    String stop_sequence = tokens.nextToken().trim();
+                    String pickup_type = tokens.nextToken().trim();
+                    String drop_off_type = tokens.nextToken().trim();
+                    String timepoint = tokens.nextToken().trim();
+                    String stop_headsign = tokens.nextToken().trim().replace("'", " ");
+
+                    query = "INSERT INTO stop_times (trip_id,arrival_times,departure_time,stop_id,stop_sequence,pickup_type,drop_off_type,timepoint,stop_headsign)\n" +
+                            "VALUES (" +
+                            "'"+trip_id+"',"+
+                            "'"+arrival_time+"',"+
+                            "'"+departure_time+"',"+
+                            "'"+stop_id+"',"+
+                            "'"+stop_sequence+"',"+
+                            "'"+pickup_type+"',"+
+                            "'"+drop_off_type+"',"+
+                            "'"+timepoint+"',"+
+                            "'"+stop_headsign+"'"+
+                            ")";
+                    stmt = connect.prepareStatement(query + ";");
+                    stmt.executeUpdate();
+                }
 
                 stmt.close();
                 connect.close();
-            }
-            catch(java.lang.ClassNotFoundException e)
-            {
-                System.err.println("ClassNotFoundException : " + e.getMessage());
-            }
-            catch (SQLException ex)
+            } catch (SQLException ex)
             {
                 System.err.println("SQLException : " + ex.getMessage());
             }
-
-
-        } catch(IOException ex) {
-            System.out.println("Can't read from file");
+        } catch (SQLException | ClassNotFoundException throwables) {
+            throwables.printStackTrace();
         }
 
-        System.out.println("stop_times.txt stocked with success!");
+
+        System.out.println("stop_times.txt saved with success!");
     }
 
     /**
      * Reading Calendar Dates
-     * @param fileName
      */
-    public void readCalendarDates(String fileName){
+    public void readCalendarDates(){
 
         System.out.println("Reading calendar_dates.txt ...");
         try {
-            reader = new BufferedReader(new FileReader(fileName));
+            reader = new BufferedReader(new FileReader(path+"/calendar_dates.txt"));
         } catch (FileNotFoundException ex) {
             System.out.println("File not found!");
         }
@@ -197,8 +208,7 @@ public class Reader {
 
             try {
                 Class.forName("org.postgresql.Driver");
-                String dbURL="jdbc:postgresql://localhost/mint_tan_gtfs";
-                Connection connect = DriverManager.getConnection(dbURL,"postgres", "lmalix");
+                Connection connect = DriverManager.getConnection(dbURL,db_username, db_password);
 
                 PreparedStatement stmt = connect.prepareStatement(query + ";");
                 stmt.executeUpdate();
@@ -218,18 +228,17 @@ public class Reader {
             System.out.println("Can't read from file");
         }
 
-        System.out.println("calendar_dates.txt stocked with success!");
+        System.out.println("calendar_dates.txt saved with success!");
     }
 
     /**
      * Reading Calendar
-     * @param fileName
      */
-    public void readCalendar(String fileName){
+    public void readCalendar(){
 
         System.out.println("Reading calendar.txt ...");
         try {
-            reader = new BufferedReader(new FileReader(fileName));
+            reader = new BufferedReader(new FileReader(path + "/calendar.txt"));
         } catch (FileNotFoundException ex) {
             System.out.println("File not found!");
         }
@@ -265,8 +274,7 @@ public class Reader {
 
             try {
                 Class.forName("org.postgresql.Driver");
-                String dbURL="jdbc:postgresql://localhost/mint_tan_gtfs";
-                Connection connect = DriverManager.getConnection(dbURL,"postgres", "lmalix");
+                Connection connect = DriverManager.getConnection(dbURL,db_username, db_password);
 
                 PreparedStatement stmt = connect.prepareStatement(query + ";");
                 stmt.executeUpdate();
@@ -286,17 +294,16 @@ public class Reader {
             System.out.println("Can't read from file");
         }
 
-        System.out.println("calendar.txt stocked with success!");
+        System.out.println("calendar.txt saved with success!");
     }
 
     /**
      * Reading Routes
-     * @param fileName
      */
-    public void readRoutes(String fileName){
+    public void readRoutes(){
         System.out.println("Reading routes.txt");
         try {
-            reader = new BufferedReader(new FileReader(fileName));
+            reader = new BufferedReader(new FileReader(path+"/routes.txt"));
         } catch (FileNotFoundException ex) {
             System.out.println("File not found!");
         }
@@ -334,8 +341,7 @@ public class Reader {
 
             try {
                 Class.forName("org.postgresql.Driver");
-                String dbURL="jdbc:postgresql://localhost/mint_tan_gtfs";
-                Connection connect = DriverManager.getConnection(dbURL,"postgres", "lmalix");
+                Connection connect = DriverManager.getConnection(dbURL,db_username, db_password);
 
                 PreparedStatement stmt = connect.prepareStatement(query + ";");
                 stmt.executeUpdate();
@@ -354,77 +360,83 @@ public class Reader {
         } catch(IOException ex) {
             System.out.println("Can't read from file");
         }
-        System.out.println("routes.txt stocked with success!");
+        System.out.println("routes.txt saved with success!");
     }
 
     /**
      * Reading Trips
-     * @param fileName
      */
-    public void readTrips(String fileName){
+    public void readTrips(){
         System.out.println("Reading trips.txt ...");
-        try {
-            reader = new BufferedReader(new FileReader(fileName));
-        } catch (FileNotFoundException ex) {
-            System.out.println("File not found!");
-        }
+
+        InputStream is = null;
+
 
         try {
-            String header = reader.readLine();
-            String line = reader.readLine();
-            String query = "TRUNCATE trip CASCADE";
-            while (line != null) {
-
-                StringTokenizer tokens = new StringTokenizer(line.replace(",", ", "), ",");
-
-                String route_id = tokens.nextToken().trim();
-                String service_id = tokens.nextToken().trim();
-                String trip_id = tokens.nextToken().trim();
-                String trip_headsign = tokens.nextToken().trim().replace("'", " ");
-                String direction_id = tokens.nextToken().trim();
-                String block_id = tokens.nextToken().trim();
-                String shape_id = tokens.nextToken().trim();
-                String wheelchair_accessible = tokens.nextToken().trim();
-
-
-                query = query + ";INSERT INTO trip (route_id,service_id,trip_id,trip_headsign,direction_id,block_id,shape_id,wheelchair_accessible)\n" +
-                        "VALUES (" +
-                        "'"+route_id+"',"+
-                        "'"+service_id+"',"+
-                        "'"+trip_id+"',"+
-                        "'"+trip_headsign+"',"+
-                        "'"+direction_id+"',"+
-                        "'"+block_id+"',"+
-                        "'"+shape_id+"',"+
-                        "'"+wheelchair_accessible+"'"+
-                        ")";
-
-                line = reader.readLine();
-            }
+            Class.forName("org.postgresql.Driver");
+            Connection connect = DriverManager.getConnection(dbURL,db_username, db_password);
 
             try {
-                Class.forName("org.postgresql.Driver");
-                String dbURL="jdbc:postgresql://localhost/mint_tan_gtfs";
-                Connection connect = DriverManager.getConnection(dbURL,"postgres", "lmalix");
+                // Creating an instance of Inputstream
+                is = new FileInputStream(path+"/trips.txt");
+            } catch (FileNotFoundException ex) {
+                System.out.println("File not found!");
+            }
 
+            // Try block to check for exceptions
+            try (Scanner sc = new Scanner(
+                    is, StandardCharsets.UTF_8.name())) {
+
+                // It holds true till there is single element
+                // left in the object with usage of hasNext()
+                // method
+                String header = sc.nextLine();
+                String query = "TRUNCATE trip CASCADE";
                 PreparedStatement stmt = connect.prepareStatement(query + ";");
                 stmt.executeUpdate();
+                while (sc.hasNextLine()) {
+                    String line = sc.nextLine();
+                    // Printing the content of file
+
+                    StringTokenizer tokens = new StringTokenizer(line.replace(",", ", "), ",");
+
+                    String route_id = tokens.nextToken().trim();
+                    String service_id = tokens.nextToken().trim();
+                    String trip_id = tokens.nextToken().trim();
+                    String trip_headsign = tokens.nextToken().trim().replace("'", " ");
+                    String direction_id = tokens.nextToken().trim();
+                    String block_id = tokens.nextToken().trim();
+                    String shape_id = tokens.nextToken().trim();
+                    String wheelchair_accessible = tokens.nextToken().trim();
+
+
+                    query = "INSERT INTO trip (route_id,service_id,trip_id,trip_headsign,direction_id,block_id,shape_id,wheelchair_accessible)\n" +
+                            "VALUES (" +
+                            "'"+route_id+"',"+
+                            "'"+service_id+"',"+
+                            "'"+trip_id+"',"+
+                            "'"+trip_headsign+"',"+
+                            "'"+direction_id+"',"+
+                            "'"+block_id+"',"+
+                            "'"+shape_id+"',"+
+                            "'"+wheelchair_accessible+"'"+
+                            ")";
+                    stmt = connect.prepareStatement(query + ";");
+                    stmt.executeUpdate();
+                }
 
                 stmt.close();
                 connect.close();
-            }
-            catch(java.lang.ClassNotFoundException e)
-            {
-                System.err.println("ClassNotFoundException : " + e.getMessage());
-            }
-            catch (SQLException ex)
+            } catch (SQLException ex)
             {
                 System.err.println("SQLException : " + ex.getMessage());
             }
-        } catch(IOException ex) {
-            System.out.println("Can't read from file");
+        } catch (SQLException | ClassNotFoundException throwables) {
+            throwables.printStackTrace();
         }
 
-        System.out.println("trips.txt stocked with success!");
+
+        System.out.println("trips.txt saved with success!");
+
     }
 }
